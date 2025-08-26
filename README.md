@@ -1,1 +1,0 @@
-# cycloidal-disk-generator

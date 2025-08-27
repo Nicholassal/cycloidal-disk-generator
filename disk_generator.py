@@ -1,4 +1,5 @@
 import math
+import html as html_lib
 from typing import Tuple
 import numpy as np
 import streamlit as st
@@ -77,44 +78,15 @@ def validate_inputs(R_p, e, r, N):
 # -------------------------------
 st.set_page_config(page_title="Disk Generator", page_icon="🌀", layout="wide")
 
-# CSS to fix padding issues and spacing
-st.markdown("""
-<style>
-/* Top padding to avoid browser UI overlap */
-.block-container {
-    padding-top: 3.5rem;
-}
-/* Small margin between sections on left side */
-.section-margin {
-    margin-bottom: 1.5rem;
-}
-/* Copy button style */
-.copy-btn {
-    font-size: 14px;
-    padding: 5px 10px;
-    cursor: pointer;
-    margin-left: 0.5rem;
-}
-/* Align buttons top-right inside code container */
-.code-container {
-    position: relative;
-}
-/* Place copy button top-right */
-.copy-btn-container {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-}
-</style>
-""", unsafe_allow_html=True)
-
 st.title("🌀 Cycloidal Disk Generator")
 
-# Left and right columns
+# Two-column layout
 left_col, right_col = st.columns([1.3, 1])
 
 with left_col:
-    # Configuration inputs
+    # Parameters title (as requested)
+    st.subheader(" Parameters")
+
     with st.form("input_form"):
         R_p = st.number_input(
             "Pin Circle Radius (Rₚ, mm)",
@@ -151,47 +123,150 @@ with left_col:
     else:
         x_expr = y_expr = ""
 
-    # Expressions + copy buttons section
-    st.markdown('<div class="section-margin">', unsafe_allow_html=True)
-    st.subheader("SolidWorks Expressions")
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
-    def copy_button_js(expr_id, btn_id):
-        # Return JS + HTML for a button copying expr to clipboard
-        return f"""
-        <button class="copy-btn" id="{btn_id}" title="Copy expression to clipboard"
-          onclick="
-            const el = document.getElementById('{expr_id}');
-            if (!navigator.clipboard) {{
-              el.select();
-              document.execCommand('copy');
-            }} else {{
-              navigator.clipboard.writeText(el.innerText);
-            }}
-            const btn = document.getElementById('{btn_id}');
-            btn.innerText = 'Copied!';
-            setTimeout(() => btn.innerText = 'Copy', 1500);
-          }}">Copy</button>
-        """
 
-    # Show expressions with copy buttons aligned top-right
-    for label, expr, key in [("x(t)", x_expr, "x"), ("y(t)", y_expr, "y")]:
-        if expr:
-            components.html(f"""
-            <div class="code-container" style="position:relative; margin-bottom:0.75rem; border:1px solid #ddd; border-radius:5px; padding:10px; font-family: monospace; white-space: pre-wrap;">
-                <div id="expr_{key}">{expr}</div>
-                <div class="copy-btn-container">{copy_button_js(f"expr_{key}", "btn_" + key)}</div>
+    # If expressions exist, render them inside a single HTML block so CSS applies
+    if x_expr and y_expr:
+        # escape the expressions for safe HTML placement
+        x_html = html_lib.escape(x_expr)
+        y_html = html_lib.escape(y_expr)
+
+        # Build an HTML snippet that contains all CSS + both equation cards + JS copy handlers.
+        # Important: CSS/JS are inside this HTML so they affect the cards (components.html uses an iframe).
+        html_snippet = """
+        <style>
+        /* Container */
+        .eq-wrap { display:flex; flex-direction:column; gap:14px; width:100%; box-sizing:border-box; padding-bottom:6px; }
+
+        /* REAL card */
+        .eq-card {
+            border: 1px solid rgba(209, 213, 219, 1);
+            border-radius: 10px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        .eq-header {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:10px 12px;
+            background:#f8fafc;
+            border-bottom:1px solid #e6eef6;
+            font-weight:700;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+            color:#0f172a;
+        }
+        .eq-body {
+            padding:12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height:180px;
+            overflow:auto;
+            font-size:13px;
+            line-height:1.35;
+        }
+
+        /* copy button (square) */
+        .copy-btn {
+            width:36px;
+            height:36px;
+            border-radius:8px;
+            border:1px solid #cbd5e1;
+            background:#ffffff;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+            transition: transform 0.06s ease, background 0.12s ease;
+        }
+        .copy-btn:hover { background:#f8fafc; transform: translateY(-1px); }
+        .copy-btn:active { transform: scale(0.98); }
+
+        .copy-btn svg { width:18px; height:18px; fill:#0f172a; }
+        </style>
+
+        <div class="eq-wrap">
+          <div class="eq-card">
+            <div class="eq-header">
+              <div>x(t)</div>
+              <button id="copy_x" class="copy-btn" title="Copy x(t)">
+                <!-- Clipboard icon -->
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v16c0 
+                           1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 18H8V7h11v16z"/>
+                </svg>
+              </button>
             </div>
-            """, height=70)
+            <pre class="eq-body" id="expr_x">{X_EXPR}</pre>
+          </div>
 
-    st.markdown('</div>', unsafe_allow_html=True)
+          <div class="eq-card">
+            <div class="eq-header">
+              <div>y(t)</div>
+              <button id="copy_y" class="copy-btn" title="Copy y(t)">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v16c0 
+                           1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 18H8V7h11v16z"/>
+                </svg>
+              </button>
+            </div>
+            <pre class="eq-body" id="expr_y">{Y_EXPR}</pre>
+          </div>
+        </div>
 
-    # SolidWorks tips expander
-    with st.expander("ℹ️ SolidWorks Tips & Constraints", expanded=False):
+        <script>
+        // copy function with fallback
+        function _copyTextFrom(elId, btnId) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const text = el.innerText || el.textContent || "";
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    const b = document.getElementById(btnId);
+                    if (b) { b.style.background = '#bbf7d0'; setTimeout(()=> b.style.background='', 700); }
+                }).catch(() => { fallbackCopy(el, btnId); });
+            } else {
+                fallbackCopy(el, btnId);
+            }
+
+            function fallbackCopy(elem, btnId) {
+                try {
+                    const range = document.createRange();
+                    range.selectNode(elem);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    document.execCommand('copy');
+                    sel.removeAllRanges();
+                    const b = document.getElementById(btnId);
+                    if (b) { b.style.background = '#bbf7d0'; setTimeout(()=> b.style.background='', 700); }
+                } catch (err) {
+                    // swallow
+                }
+            }
+        }
+
+        document.getElementById('copy_x').addEventListener('click', function(){ _copyTextFrom('expr_x', 'copy_x'); });
+        document.getElementById('copy_y').addEventListener('click', function(){ _copyTextFrom('expr_y', 'copy_y'); });
+        </script>
+        """.replace("{X_EXPR}", x_html).replace("{Y_EXPR}", y_html)
+
+        # Render the HTML with a height that's comfortably tall for two cards.
+        # If your equations are very long, increase the height or adjust max-height in CSS above.
+        components.html(html_snippet, height=320, scrolling=True)
+
+    else:
+        st.info("Enter valid parameters and click Generate to see SolidWorks expressions.")
+
+    # Extra tips
+    with st.expander("ℹ️ More SolidWorks Tips", expanded=False):
         st.markdown("""
-        - Use **Parametric** mode in *Equation Driven Curve* and paste the two expressions.
-        - Set **t1 = 0**, **t2 = 2*pi** (radians). Use `2*pi - 1e-6` if SolidWorks complains about curve closure.
-        - Use `atn()` instead of `atan()` in SW equations.
-        - You **cannot** reference Global Variables inside the curve directly; link dimensions to GVs instead.
+        - Paste both expressions in Parametric mode.
+        - t1 = 0, t2 = 2*pi (use `2*pi - 1e-6` if SolidWorks complains about closure).
+        - Use `atn()` instead of `atan()` in SolidWorks equations.
+        - You cannot reference Global Variables inside the curve directly; link dimensions to GVs instead.
         """)
 
 with right_col:
@@ -201,7 +276,7 @@ with right_col:
         X, Y, _, diag = sample_curve(R_p, e, r, N)
 
         fig, ax = plt.subplots(figsize=(3, 3))
-        ax.plot(X, Y, linewidth=0.8)
+        ax.plot(X, Y, linewidth=0.9)
         ax.set_aspect("equal", adjustable="datalim")
         ax.grid(True, linestyle='--', linewidth=0.3)
         ax.set_xticks([])
@@ -211,8 +286,7 @@ with right_col:
 
         if diag.get("has_singularity"):
             st.warning(
-                "Singularity detected in `atn` argument. "
-                "In SolidWorks, consider using `t2 = 2*pi - 1e-6`."
+                "Singularity detected in `atn` argument. In SolidWorks, consider using `t2 = 2*pi - 1e-6`."
             )
     else:
         st.info("Please enter valid parameters and click Generate.")
